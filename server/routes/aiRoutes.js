@@ -570,7 +570,7 @@ router.post(
 
             const interactionResponse =
               await axios.get(
-                "http://localhost:5000/api/interactions/check",
+                `${import.meta.env.VITE_API_URL}/interactions/check`,
                 {
                   params: {
                     medicine1:
