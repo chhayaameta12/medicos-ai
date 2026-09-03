@@ -18,10 +18,34 @@ const app = express();
    MIDDLEWARE
 ================================================== */
 
-app.use(cors({
-    origin: "https://medicos-ai-psi.vercel.app",
+const allowedOrigins = [
+  "https://medicos-ai-psi.vercel.app",
+  process.env.FRONTEND_URL,
+].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header
+      // and approved frontend origins.
+      if (!origin || allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow Vercel preview/deployment URLs
+      if (
+        /^https:\/\/medicos-ai-[a-z0-9-]+\.vercel\.app$/i.test(
+          origin
+        )
+      ) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Origin is not allowed by CORS"));
+    },
     credentials: true,
-  }));
+  })
+);
 app.use(express.json());
 app.use(cookieParser());
 
