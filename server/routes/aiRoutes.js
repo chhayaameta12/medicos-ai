@@ -25,14 +25,14 @@ async function generateGeminiResponse(prompt) {
   }
 
   const models = [
-    "gemini-3.7-flash",
-    "gemini-3.6-flash",
-  ];
+  "gemini-3.5-flash-lite",
+  "gemini-3.1-flash-lite",
+];
 
   let lastError = null;
 
   for (const model of models) {
-    for (let attempt = 1; attempt <= 3; attempt++) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
       try {
         console.log(
           `Gemini request: model=${model}, attempt=${attempt}`
