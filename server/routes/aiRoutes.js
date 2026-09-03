@@ -727,14 +727,32 @@ router.post(
       // ==================================================
 
       if (
-        error?.status === 401 ||
-        error?.status === 403
-      ) {
-        return res.status(500).json({
-          error:
-            "Gemini API authentication failed. Please check your GEMINI_API_KEY.",
-        });
-      }
+  error?.status === 401 ||
+  error?.status === 403
+) {
+  console.error(
+    "GEMINI AUTH ERROR STATUS:",
+    error.status
+  );
+
+  console.error(
+    "GEMINI AUTH ERROR MESSAGE:",
+    error.message
+  );
+
+  console.error(
+    "GEMINI AUTH ERROR DETAILS:",
+    error.error?.details ||
+      error.details ||
+      error.response?.data ||
+      null
+  );
+
+  return res.status(500).json({
+    error:
+      "Gemini authentication failed. Check Render logs for the exact reason.",
+  });
+}
 
       // ==================================================
       // GEMINI QUOTA / RATE LIMIT
