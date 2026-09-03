@@ -152,12 +152,14 @@ router.post("/login", async (req, res) => {
     );
 
     // Send JWT using HttpOnly cookie
-    res.cookie("token", token, {
-      httpOnly: true,
-      secure: false, // localhost development
-      sameSite: "lax",
-      maxAge: 7 * 24 * 60 * 60 * 1000,
-    });
+    const isProduction = process.env.NODE_ENV === "production";
+
+res.cookie("token", token, {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+  maxAge: 7 * 24 * 60 * 60 * 1000,
+});
 
     return res.status(200).json({
       message: "Login successful",
@@ -189,7 +191,7 @@ router.get("/me", authMiddleware, async (req, res) => {
       FROM users
       WHERE id = $1
       `,
-      [req.user.userId]
+      [req.user.id]
     );
 
     if (result.rows.length === 0) {
@@ -216,11 +218,13 @@ router.get("/me", authMiddleware, async (req, res) => {
 ================================================== */
 
 router.post("/logout", (req, res) => {
-  res.clearCookie("token", {
-    httpOnly: true,
-    secure: false,
-    sameSite: "lax",
-  });
+  const isProduction = process.env.NODE_ENV === "production";
+
+res.clearCookie("token", {
+  httpOnly: true,
+  secure: isProduction,
+  sameSite: isProduction ? "none" : "lax",
+});
 
   return res.status(200).json({
     message: "Logout successful",
