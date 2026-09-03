@@ -24,48 +24,114 @@ async function generateGeminiResponse(prompt) {
     throw new Error("GEMINI_API_KEY is missing");
   }
 
-  const response = await fetch(
-    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
-    {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-goog-api-key": apiKey,
-      },
-      body: JSON.stringify({
-        contents: [
+  const models = [
+    "gemini-3.7-flash",
+    "gemini-3.6-flash",
+  ];
+
+  let lastError = null;
+
+  for (const model of models) {
+    for (let attempt = 1; attempt <= 3; attempt++) {
+      try {
+        console.log(
+          `Gemini request: model=${model}, attempt=${attempt}`
+        );
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`,
           {
-            parts: [
-              {
-                text: prompt,
-              },
-            ],
-          },
-        ],
-      }),
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "x-goog-api-key": apiKey,
+            },
+            body: JSON.stringify({
+              contents: [
+                {
+                  parts: [
+                    {
+                      text: prompt,
+                    },
+                  ],
+                },
+              ],
+            }),
+          }
+        );
+
+        const data = await response.json();
+
+        if (response.ok) {
+          return (
+            data?.candidates?.[0]?.content?.parts
+              ?.map((part) => part.text || "")
+              .join("") || ""
+          );
+        }
+
+        const error = new Error(
+          data?.error?.message ||
+            "Gemini API request failed"
+        );
+
+        error.status = response.status;
+        error.details = data;
+
+        lastError = error;
+
+        // Retry temporary server errors
+        if (response.status === 503) {
+          const delay = attempt * 2000;
+
+          console.log(
+            `Gemini 503. Retrying in ${delay}ms...`
+          );
+
+          await new Promise((resolve) =>
+            setTimeout(resolve, delay)
+          );
+
+          continue;
+        }
+
+        // Don't retry authentication or other permanent errors
+        throw error;
+      } catch (error) {
+        lastError = error;
+
+        if (
+          error?.status === 401 ||
+          error?.status === 403
+        ) {
+          throw error;
+        }
+
+        if (
+          error?.status === 429
+        ) {
+          throw error;
+        }
+
+        if (
+          error?.status === 503
+        ) {
+          continue;
+        }
+
+        throw error;
+      }
     }
-  );
 
-  const data = await response.json();
-
-  if (!response.ok) {
-    const error = new Error(
-      data?.error?.message || "Gemini API request failed"
+    console.log(
+      `Model ${model} failed. Trying fallback model...`
     );
-
-    error.status = response.status;
-    error.details = data;
-
-    throw error;
   }
 
-  return (
-    data?.candidates?.[0]?.content?.parts
-      ?.map((part) => part.text || "")
-      .join("") || ""
+  throw lastError || new Error(
+    "All Gemini models are temporarily unavailable."
   );
 }
-
 // ==================================================
 // BACKEND INTERNAL API BASE URL
 // ==================================================
