@@ -10,9 +10,24 @@ const RXNORM_URL = "https://rxnav.nlm.nih.gov/REST";
 // GEMINI CLIENT
 // ==================================================
 
+console.log(
+  "Gemini API key loaded:",
+  Boolean(process.env.GEMINI_API_KEY),
+  "length:",
+  process.env.GEMINI_API_KEY?.length || 0
+);
+
 const ai = new GoogleGenAI({
   apiKey: process.env.GEMINI_API_KEY,
 });
+
+// ==================================================
+// BACKEND INTERNAL API BASE URL
+// ==================================================
+
+const API_BASE_URL =
+  process.env.INTERNAL_API_URL ||
+  `http://localhost:${process.env.PORT || 5000}`;
 
 // ==================================================
 // RXNORM MEDICINE LOOKUP
@@ -44,21 +59,18 @@ async function resolveMedicine(medicineName) {
         "RxNorm could not resolve:",
         medicineName
       );
-
       return null;
     }
 
-    // Get medicine properties
     let properties = {};
 
     try {
-      const propertiesResponse =
-        await axios.get(
-          `${RXNORM_URL}/rxcui/${rxcui}/properties.json`,
-          {
-            timeout: 10000,
-          }
-        );
+      const propertiesResponse = await axios.get(
+        `${RXNORM_URL}/rxcui/${rxcui}/properties.json`,
+        {
+          timeout: 10000,
+        }
+      );
 
       properties =
         propertiesResponse.data?.properties || {};
@@ -69,17 +81,15 @@ async function resolveMedicine(medicineName) {
       );
     }
 
-    // Get related concepts
     let ingredients = [];
 
     try {
-      const relatedResponse =
-        await axios.get(
-          `${RXNORM_URL}/rxcui/${rxcui}/allrelated.json`,
-          {
-            timeout: 10000,
-          }
-        );
+      const relatedResponse = await axios.get(
+        `${RXNORM_URL}/rxcui/${rxcui}/allrelated.json`,
+        {
+          timeout: 10000,
+        }
+      );
 
       const groups =
         relatedResponse.data?.allRelatedGroup
@@ -108,13 +118,11 @@ async function resolveMedicine(medicineName) {
         }
       }
 
-      // Remove duplicates
       ingredients = ingredients.filter(
         (item, index, array) =>
           index ===
           array.findIndex(
-            (x) =>
-              x.rxcui === item.rxcui
+            (x) => x.rxcui === item.rxcui
           )
       );
     } catch (error) {
@@ -124,7 +132,6 @@ async function resolveMedicine(medicineName) {
       );
     }
 
-    // If RxNorm itself is an ingredient
     if (ingredients.length === 0) {
       ingredients = [
         {
@@ -166,17 +173,11 @@ function extractInteractionMedicines(question) {
 
   const patterns = [
     /can i take (.+?) with (.+?)(?:\?|$)/i,
-
     /can i take (.+?) together with (.+?)(?:\?|$)/i,
-
     /can i take (.+?) and (.+?)(?:\?|$)/i,
-
     /can i use (.+?) with (.+?)(?:\?|$)/i,
-
     /can i use (.+?) and (.+?)(?:\?|$)/i,
-
     /(.+?) with (.+?)(?:\?|$)/i,
-
     /(.+?) together with (.+?)(?:\?|$)/i,
   ];
 
@@ -279,21 +280,13 @@ function extractPossibleMedicine(question) {
 
   const patterns = [
     /tell me about (.+)/i,
-
     /what is (.+?)(?:\?|$)/i,
-
     /what are the uses of (.+?)(?:\?|$)/i,
-
     /what is (.+?) used for(?:\?|$)/i,
-
     /side effects of (.+?)(?:\?|$)/i,
-
     /uses of (.+?)(?:\?|$)/i,
-
     /precautions for (.+?)(?:\?|$)/i,
-
     /information about (.+?)(?:\?|$)/i,
-
     /is (.+?) safe(?:\?|$)/i,
   ];
 
@@ -305,7 +298,6 @@ function extractPossibleMedicine(question) {
         .trim()
         .replace(/[?.!]+$/, "");
 
-      // Remove common trailing phrases
       medicine = medicine
         .replace(
           /\s+(during pregnancy|in pregnancy)$/i,
@@ -339,7 +331,6 @@ function createMedicalPrompt(
     medicineContext = `
 VERIFIED RXNORM INFORMATION
 ----------------------------
-
 User medicine input:
 ${medicineData.input}
 
@@ -362,7 +353,6 @@ ${
 
 IMPORTANT:
 Use the verified RxNorm information above as factual context.
-
 Do not invent additional medicine-specific facts when they
 are not supported by the provided information.
 `;
@@ -384,50 +374,33 @@ IMPORTANT RULES
 ---------------
 
 1. Provide educational information only.
-
 2. Do not diagnose diseases.
-
 3. Do not prescribe treatment.
-
 4. Do not tell the user to start, stop, or change a prescription
    medicine without professional medical advice.
-
 5. Do not invent medicine-specific facts.
-
 6. If information is unavailable from the provided data,
    clearly say that it is unavailable rather than guessing.
-
 7. For dosage questions, explain that dosage depends on factors
    such as age, formulation, medical condition, other medicines,
    and professional guidance.
-
 8. For pregnancy, children, elderly patients, kidney disease,
    liver disease, allergies, or serious medical conditions,
    recommend consultation with a doctor or pharmacist.
-
 9. If the user describes severe or emergency symptoms,
    recommend immediate professional medical help.
-
 10. Keep the response easy to understand.
-
 11. Use Markdown formatting.
-
 12. Prefer this structure when appropriate:
 
 ### What it is
-
 ### Common uses
-
 ### Common side effects
-
 ### Important precautions
-
 ### When to seek medical help
-
 ### Important note
 
 13. Do not claim that a medicine is completely safe.
-
 14. Do not replace a doctor or pharmacist.
 
 End with a short educational disclaimer when appropriate.
@@ -459,7 +432,6 @@ Do NOT independently invent or contradict the database result.
 
 DATABASE RESULT
 ---------------
-
 ${JSON.stringify(
   interactionResult,
   null,
@@ -485,13 +457,9 @@ INSTRUCTIONS
    - Do not say that the combination is automatically safe.
 
 4. Do not prescribe doses.
-
 5. Mention that individual factors can change medicine safety.
-
 6. Recommend a doctor or pharmacist when appropriate.
-
 7. Use Markdown.
-
 8. Keep the answer concise and understandable.
 
 End with an educational disclaimer.
@@ -509,14 +477,13 @@ router.post(
       const {
         message,
         question,
-      } = req.body;
+      } = req.body || {};
 
-      const userMessage =
-        (
-          message ||
-          question ||
-          ""
-        ).trim();
+      const userMessage = (
+        message ||
+        question ||
+        ""
+      ).trim();
 
       if (!userMessage) {
         return res.status(400).json({
@@ -533,7 +500,7 @@ router.post(
       console.log("================================");
 
       // ==================================================
-      // 1. CHECK WHETHER THIS IS AN INTERACTION QUESTION
+      // 1. INTERACTION QUESTION
       // ==================================================
 
       if (
@@ -562,24 +529,16 @@ router.post(
           );
 
           try {
-            /*
-            ============================================
-            CALL EXISTING INTERACTION SYSTEM
-            ============================================
-            */
-
             const interactionResponse =
               await axios.get(
-                `${import.meta.env.VITE_API_URL}/interactions/check`,
+                `${API_BASE_URL}/api/interactions/check`,
                 {
                   params: {
                     medicine1:
                       medicines.medicine1,
-
                     medicine2:
                       medicines.medicine2,
                   },
-
                   timeout: 20000,
                 }
               );
@@ -591,12 +550,6 @@ router.post(
               "DDInter result received successfully"
             );
 
-            /*
-            ============================================
-            GEMINI EXPLAINS DATABASE RESULT
-            ============================================
-            */
-
             const prompt =
               createInteractionPrompt(
                 userMessage,
@@ -606,8 +559,7 @@ router.post(
             const response =
               await ai.models.generateContent({
                 model:
-                  "gemini-3.6-flash",
-
+                  "gemini-3.7-flash",
                 contents: prompt,
               });
 
@@ -626,10 +578,8 @@ router.post(
 
             return res.status(200).json({
               answer,
-
               type:
                 "interaction",
-
               data:
                 interactionResult,
             });
@@ -638,11 +588,6 @@ router.post(
               "DDInter lookup failed:",
               interactionError.message
             );
-
-            /*
-            If DDInter fails, don't let Gemini
-            pretend that it checked the database.
-            */
 
             return res.status(500).json({
               error:
@@ -696,7 +641,6 @@ router.post(
             await ai.models.generateContent({
               model:
                 "gemini-3.6-flash",
-
               contents: prompt,
             });
 
@@ -715,10 +659,8 @@ router.post(
 
           return res.status(200).json({
             answer,
-
             type:
               "medicine",
-
             medicine:
               medicineData,
           });
@@ -742,7 +684,6 @@ router.post(
         await ai.models.generateContent({
           model:
             "gemini-3.6-flash",
-
           contents: prompt,
         });
 
@@ -761,15 +702,25 @@ router.post(
 
       return res.status(200).json({
         answer,
-
         type:
           "general",
       });
     } catch (error) {
-      console.error("================================");
-      console.error("AI ERROR");
-      console.error(error);
-      console.error("================================");
+      console.error(
+        "================================"
+      );
+
+      console.error(
+        "AI ERROR"
+      );
+
+      console.error(
+        error
+      );
+
+      console.error(
+        "================================"
+      );
 
       // ==================================================
       // GEMINI AUTHENTICATION ERROR
