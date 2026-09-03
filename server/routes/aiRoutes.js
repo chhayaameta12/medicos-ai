@@ -1,6 +1,6 @@
 import express from "express";
 import axios from "axios";
-import { GoogleGenAI } from "@google/genai";
+
 
 const router = express.Router();
 
@@ -17,9 +17,54 @@ console.log(
   process.env.GEMINI_API_KEY?.length || 0
 );
 
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY,
-});
+async function generateGeminiResponse(prompt) {
+  const apiKey = process.env.GEMINI_API_KEY;
+
+  if (!apiKey) {
+    throw new Error("GEMINI_API_KEY is missing");
+  }
+
+  const response = await fetch(
+    "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.7-flash:generateContent",
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              {
+                text: prompt,
+              },
+            ],
+          },
+        ],
+      }),
+    }
+  );
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    const error = new Error(
+      data?.error?.message || "Gemini API request failed"
+    );
+
+    error.status = response.status;
+    error.details = data;
+
+    throw error;
+  }
+
+  return (
+    data?.candidates?.[0]?.content?.parts
+      ?.map((part) => part.text || "")
+      .join("") || ""
+  );
+}
 
 // ==================================================
 // BACKEND INTERNAL API BASE URL
@@ -556,16 +601,14 @@ router.post(
                 interactionResult
               );
 
-            const response =
-              await ai.models.generateContent({
-                model:
-                  "gemini-3.7-flash",
-                contents: prompt,
-              });
+           
+           const answer = await generateGeminiResponse(prompt);
 
-            const answer =
-              response.text ||
-              "Sorry, I couldn't generate a response right now.";
+if (!answer) {
+  throw new Error(
+    "Gemini returned an empty response"
+  );
+}
 
             console.log(
               "AI Response generated successfully"
@@ -637,17 +680,13 @@ router.post(
               medicineData
             );
 
-          const response =
-            await ai.models.generateContent({
-              model:
-                "gemini-3.6-flash",
-              contents: prompt,
-            });
+          const answer = await generateGeminiResponse(prompt);
 
-          const answer =
-            response.text ||
-            "Sorry, I couldn't generate a response right now.";
-
+if (!answer) {
+  throw new Error(
+    "Gemini returned an empty response"
+  );
+}
           console.log(
             "AI Medicine Response generated successfully"
           );
@@ -680,17 +719,13 @@ router.post(
           userMessage
         );
 
-      const response =
-        await ai.models.generateContent({
-          model:
-            "gemini-3.6-flash",
-          contents: prompt,
-        });
+      const answer = await generateGeminiResponse(prompt);
 
-      const answer =
-        response.text ||
-        "Sorry, I couldn't generate a response right now.";
-
+if (!answer) {
+  throw new Error(
+    "Gemini returned an empty response"
+  );
+}
       console.log(
         "AI Response generated successfully"
       );
