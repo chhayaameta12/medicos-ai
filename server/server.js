@@ -19,9 +19,58 @@ const app = express();
 ================================================== */
 
 const allowedOrigins = [
+  "http://localhost:5173",
+  "http://localhost:5174",
+  "http://127.0.0.1:5173",
+  "http://127.0.0.1:5174",
   "https://medicos-ai-psi.vercel.app",
   process.env.FRONTEND_URL,
 ].filter(Boolean);
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests without Origin
+      if (!origin) {
+        return callback(null, true);
+      }
+
+      // Allow known frontend URLs
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+
+      // Allow Vercel preview deployments
+      if (
+        /^https:\/\/medicos-ai-[a-z0-9-]+\.vercel\.app$/i.test(origin)
+      ) {
+        return callback(null, true);
+      }
+
+      console.log("❌ CORS blocked origin:", origin);
+
+      return callback(
+        new Error("Origin is not allowed by CORS")
+      );
+    },
+
+    credentials: true,
+
+    methods: [
+      "GET",
+      "POST",
+      "PUT",
+      "PATCH",
+      "DELETE",
+      "OPTIONS",
+    ],
+
+    allowedHeaders: [
+      "Content-Type",
+      "Authorization",
+    ],
+  })
+);
 
 app.use(
   cors({

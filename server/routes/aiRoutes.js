@@ -24,15 +24,17 @@ async function generateGeminiResponse(prompt) {
     throw new Error("GEMINI_API_KEY is missing");
   }
 
+  // Primary + fallback models
   const models = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.1-flash-lite",
-];
+    "gemini-3.5-flash-lite",
+    "gemini-3.1-flash-lite",
+  ];
 
   let lastError = null;
 
   for (const model of models) {
-    for (let attempt = 1; attempt <= 2; attempt++) {
+    // Retry each model up to 3 times
+    for (let attempt = 1; attempt <= 3; attempt++) {
       try {
         console.log(
           `Gemini request: model=${model}, attempt=${attempt}`
@@ -56,20 +58,41 @@ async function generateGeminiResponse(prompt) {
                   ],
                 },
               ],
+
+              // Keep responses controlled
+              generationConfig: {
+                temperature: 0.4,
+                maxOutputTokens: 700,
+              },
             }),
           }
         );
 
         const data = await response.json();
 
+        // -----------------------------------------
+        // SUCCESS
+        // -----------------------------------------
         if (response.ok) {
-          return (
+          const answer =
             data?.candidates?.[0]?.content?.parts
               ?.map((part) => part.text || "")
-              .join("") || ""
+              .join("") || "";
+
+          if (!answer.trim()) {
+            throw new Error("Gemini returned an empty response");
+          }
+
+          console.log(
+            `Gemini success: model=${model}`
           );
+
+          return answer;
         }
 
+        // -----------------------------------------
+        // ERROR
+        // -----------------------------------------
         const error = new Error(
           data?.error?.message ||
             "Gemini API request failed"
@@ -80,42 +103,115 @@ async function generateGeminiResponse(prompt) {
 
         lastError = error;
 
-        // Retry temporary server errors
-        if (response.status === 503) {
-          const delay = attempt * 2000;
+        console.error(
+          `Gemini error: model=${model}, status=${response.status}`,
+          data?.error?.message || ""
+        );
 
-          console.log(
-            `Gemini 503. Retrying in ${delay}ms...`
-          );
+        // -----------------------------------------
+        // AUTH ERROR
+        // Don't retry bad API keys
+        // -----------------------------------------
+        if (
+          response.status === 400 ||
+          response.status === 401 ||
+          response.status === 403
+        ) {
+          throw error;
+        }
 
-          await new Promise((resolve) =>
-            setTimeout(resolve, delay)
-          );
+        // -----------------------------------------
+        // TEMPORARY / RATE LIMIT ERRORS
+        // Retry with exponential backoff
+        // -----------------------------------------
+        if (
+          response.status === 429 ||
+          response.status === 500 ||
+          response.status === 502 ||
+          response.status === 503 ||
+          response.status === 504
+        ) {
+          let delay = Math.pow(2, attempt - 1) * 2000;
+
+          // If Gemini provides Retry-After, respect it
+          const retryAfter =
+            response.headers.get("retry-after");
+
+          if (retryAfter) {
+            const retrySeconds = Number(retryAfter);
+
+            if (!Number.isNaN(retrySeconds)) {
+              delay = retrySeconds * 1000;
+            }
+          }
+
+          // Don't wait after the final attempt
+          if (attempt < 3) {
+            console.log(
+              `Gemini temporary error (${response.status}). ` +
+              `Retrying in ${delay}ms...`
+            );
+
+            await new Promise((resolve) =>
+              setTimeout(resolve, delay)
+            );
+          }
 
           continue;
         }
 
-        // Don't retry authentication or other permanent errors
+        // -----------------------------------------
+        // Other errors
+        // -----------------------------------------
         throw error;
+
       } catch (error) {
         lastError = error;
 
+        console.error(
+          `Gemini request failed: model=${model}, attempt=${attempt}`,
+          error.message
+        );
+
+        // Don't retry authentication errors
         if (
+          error?.status === 400 ||
           error?.status === 401 ||
           error?.status === 403
         ) {
           throw error;
         }
 
+        // Retry temporary errors
         if (
-          error?.status === 429
+          error?.status === 429 ||
+          error?.status === 500 ||
+          error?.status === 502 ||
+          error?.status === 503 ||
+          error?.status === 504
         ) {
-          throw error;
+          continue;
         }
 
+        // Network errors can also be temporary
         if (
-          error?.status === 503
+          error?.name === "TypeError" ||
+          error?.code === "ECONNRESET" ||
+          error?.code === "ETIMEDOUT"
         ) {
+          if (attempt < 3) {
+            const delay =
+              Math.pow(2, attempt - 1) * 2000;
+
+            console.log(
+              `Network error. Retrying in ${delay}ms...`
+            );
+
+            await new Promise((resolve) =>
+              setTimeout(resolve, delay)
+            );
+          }
+
           continue;
         }
 
@@ -123,13 +219,23 @@ async function generateGeminiResponse(prompt) {
       }
     }
 
+    // -----------------------------------------
+    // Current model failed
+    // Try fallback model
+    // -----------------------------------------
     console.log(
       `Model ${model} failed. Trying fallback model...`
     );
   }
 
-  throw lastError || new Error(
-    "All Gemini models are temporarily unavailable."
+  // -----------------------------------------
+  // All models failed
+  // -----------------------------------------
+  throw (
+    lastError ||
+    new Error(
+      "All Gemini models are temporarily unavailable."
+    )
   );
 }
 // ==================================================
