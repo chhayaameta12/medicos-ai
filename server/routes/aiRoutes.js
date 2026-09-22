@@ -26,7 +26,7 @@ async function generateGeminiResponse(prompt) {
 
   // Primary + fallback models
   const models = [
-    "gemini-2.5-flash",
+    "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
     "gemini-3.1-flash-lite",
   ];
@@ -126,6 +126,7 @@ async function generateGeminiResponse(prompt) {
         // Retry with exponential backoff
         // -----------------------------------------
         if (
+          response.status === 404 ||
           response.status === 429 ||
           response.status === 500 ||
           response.status === 502 ||
@@ -176,6 +177,7 @@ async function generateGeminiResponse(prompt) {
 
         // Don't retry authentication errors
         if (
+          error?.status === 404 ||
           error?.status === 400 ||
           error?.status === 401 ||
           error?.status === 403
@@ -185,6 +187,7 @@ async function generateGeminiResponse(prompt) {
 
         // Retry temporary errors
         if (
+          error?.status === 404 ||
           error?.status === 429 ||
           error?.status === 500 ||
           error?.status === 502 ||
