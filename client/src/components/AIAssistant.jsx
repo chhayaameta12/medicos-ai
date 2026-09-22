@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 import { Bot, Send, X } from "lucide-react";
 import ReactMarkdown from "react-markdown";
 
+const API_URL = import.meta.env.VITE_API_URL?.replace(/\/$/, "");
+
 function AIAssistant({ autoOpen = false, pageMode = false }) {
   const [isOpen, setIsOpen] = useState(autoOpen || pageMode);
   const [message, setMessage] = useState("");
@@ -49,18 +51,21 @@ function AIAssistant({ autoOpen = false, pageMode = false }) {
     setLoading(true);
 
     try {
-      const response = await fetch(
-       `${import.meta.env.VITE_API_URL}/ai/chat` ,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            message: trimmedMessage,
-          }),
-        }
-      );
+      if (!API_URL) {
+        throw new Error(
+          "VITE_API_URL is not configured. Add it to the frontend deployment environment and rebuild."
+        );
+      }
+
+      const response = await fetch(`${API_URL}/ai/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: trimmedMessage,
+        }),
+      });
 
       const data = await response.json();
 
