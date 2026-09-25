@@ -63,7 +63,7 @@ async function generateGeminiResponse(prompt) {
               // Keep responses controlled
               generationConfig: {
                 temperature: 0.4,
-                maxOutputTokens: 700,
+                maxOutputTokens: 2000,
               },
             }),
           }
@@ -75,18 +75,30 @@ async function generateGeminiResponse(prompt) {
         // SUCCESS
         // -----------------------------------------
         if (response.ok) {
+          const candidate = data?.candidates?.[0];
           const answer =
-            data?.candidates?.[0]?.content?.parts
+            candidate?.content?.parts
               ?.map((part) => part.text || "")
               .join("") || "";
 
-          if (!answer.trim()) {
-            throw new Error("Gemini returned an empty response");
-          }
+          
 
           console.log(
             `Gemini success: model=${model}`
           );
+          console.log(
+    "Gemini finish reason:",
+    candidate?.finishReason
+  );
+
+  console.log(
+    "Gemini response length:",
+    answer.length
+  );
+
+  if (!answer.trim()) {
+    throw new Error("Gemini returned an empty response");
+  }
 
           return answer;
         }
